@@ -1,0 +1,28 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="Sound">
+        <SwitchPreference
+            android:defaultValue="true"
+            android:icon="@drawable/ic_audiotrack_black_24dp"
+            android:key="bgm"
+            android:summary="Play for BGM"
+            android:title="Background Music" />
+
+        <SwitchPreference
+            android:icon="@drawable/ic_touch_app_black_24dp"
+            android:defaultValue="true"
+            android:key="effect"
+            android:title="Effect sound"
+            android:summary="Play for effect sound" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Vibration">
+        <SwitchPreference
+            android:icon="@drawable/ic_vibration_black_24dp"
+            android:defaultValue="true"
+            android:key="vibrate"
+            android:title="Vibrate"
+            android:summary="Set vibrate on touch" />
+    </PreferenceCategory>
+
+</PreferenceScreen>
