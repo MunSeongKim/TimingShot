@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
-import android.media.MediaPlayer;
 import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Vibrator;
@@ -12,7 +11,6 @@ import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
-import android.widget.Toast;
 
 import com.tsengvn.typekit.TypekitContextWrapper;
 
@@ -21,8 +19,11 @@ public class MainActivity extends AppCompatActivity {
     protected int effectId = 0;
     private Vibrator vibe = null;
     private static final String PREFS_NAME = "gamePrefs";
-    private Boolean vibeSetting = true;
+
     private SharedPreferences settings = null;
+    private Boolean vibeSetting = true;
+    private Boolean effectSetting = true;
+    private Boolean bgmSetting = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,15 +37,12 @@ public class MainActivity extends AppCompatActivity {
         vibe = (Vibrator)getSystemService(Context.VIBRATOR_SERVICE);
 
         //Initialize ShearedPreferences Object
-
         settings = PreferenceManager.getDefaultSharedPreferences(this);
     }
 
     @Override
     protected void onStart(){
         super.onStart();
-        //When started application, start play for bgm service
-        startService(new Intent(this, BgmService.class));
         Log.i("LifeCycle", "onStart()");
     }
 
@@ -57,41 +55,57 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume(){
         super.onResume();
+        //Get setting data from SharedPreferences
         vibeSetting = settings.getBoolean("vibrate", true);
+        effectSetting = settings.getBoolean("effect", true);
+        bgmSetting = settings.getBoolean("bgm", true);
+        if(bgmSetting){
+            //When started application, start play for bgm service
+            startService(new Intent(this, BgmService.class));
+        } else {
+            stopService(new Intent(this, BgmService.class));
+        }
         Log.i("LifeCycle", "onResume()");
     }
 
     @Override
     protected void onPause(){
-        Log.i("LifeCycle", "onPause()");
         super.onPause();
+        Log.i("LifeCycle", "onPause()");
     }
 
     @Override
     protected void onStop(){
-        Log.i("LifeCycle", "onStop()");
         super.onStop();
+        Log.i("LifeCycle", "onStop()");
     }
 
     @Override
     protected void onDestroy(){
-        Log.i("LifeCycle", "onDestroy()");
-        //When ended application, stop play for bgm service
-        stopService(new Intent(this, BgmService.class));
         super.onDestroy();
+        Log.i("LifeCycle", "onDestroy()");
+        if( isFinishing() ) {
+            //When ended application, stop play for bgm service
+            stopService(new Intent(this, BgmService.class));
+        } else {
+            Log.i("LifeCycle", "Not finished");
+        }
+
     }
 
-    //Apply to external font
+    //Apply external font
     @Override
     protected void attachBaseContext(Context newBase) {
         super.attachBaseContext(TypekitContextWrapper.wrap(newBase));
     }
 
     protected void onClickButton(View v){
-        //Setting up to sound effect on click button
-        effect.play(effectId, 1, 1, 1, 0, 1);
-
+        if( effectSetting ){
+            //Setting up to sound effect on button click
+            effect.play(effectId, 1, 1, 1, 0, 1);
+        }
         if( vibeSetting ){
+            //Setting up to vibe effect on button click
             vibe.vibrate(150);
         }
 

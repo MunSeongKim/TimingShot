@@ -12,7 +12,8 @@ public class SetFontApp extends Application {
     @Override
     public void onCreate(){
         super.onCreate();
-
+        //Initialize Typekit library
+        //Typekit: Library that applying external font
         Typekit.getInstance()
                 .addItalic(Typekit.createFromAsset(this, "fonts/speed.ttf"))
                 .addBold(Typekit.createFromAsset(this, "fonts/BusanStation.ttf"))
