@@ -17,8 +17,8 @@ import com.tsengvn.typekit.TypekitContextWrapper;
 public class MainActivity extends AppCompatActivity {
     protected SoundPool effect = null;
     protected int effectId = 0;
+
     private Vibrator vibe = null;
-    private static final String PREFS_NAME = "gamePrefs";
 
     private SharedPreferences settings = null;
     private Boolean vibeSetting = true;
@@ -59,11 +59,12 @@ public class MainActivity extends AppCompatActivity {
         vibeSetting = settings.getBoolean("vibrate", true);
         effectSetting = settings.getBoolean("effect", true);
         bgmSetting = settings.getBoolean("bgm", true);
+        //When started application, start play for bgm service
+        //Based on bgm preference value
         if(bgmSetting){
-            //When started application, start play for bgm service
-            startService(new Intent(this, BgmService.class));
+            startService(new Intent(this, MainBgmService.class));
         } else {
-            stopService(new Intent(this, BgmService.class));
+            stopService(new Intent(this, MainBgmService.class));
         }
         Log.i("LifeCycle", "onResume()");
     }
@@ -84,9 +85,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy(){
         super.onDestroy();
         Log.i("LifeCycle", "onDestroy()");
+        //When this application is completely finished, stop play for bgm service
         if( isFinishing() ) {
-            //When ended application, stop play for bgm service
-            stopService(new Intent(this, BgmService.class));
+            stopService(new Intent(this, MainBgmService.class));
         } else {
             Log.i("LifeCycle", "Not finished");
         }
@@ -114,7 +115,9 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case R.id.btStart:
                 //if GameStart button click, stop to music service
-                stopService(new Intent(this, BgmService.class));
+                stopService(new Intent(this, MainBgmService.class));
+                //and then start to game activity
+                startActivity(new Intent(this, GameActivity.class));
                 break;
             case R.id.btSetting:
                 //if this button click, Start settings activity
@@ -122,5 +125,4 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
     }
-
 }

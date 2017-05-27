@@ -27,9 +27,9 @@ public class SettingsActivity extends AppCompatActivity {
             public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
                 if( key.equals("bgm") ) {
                     if (sharedPreferences.getBoolean(key, true)) {
-                        startService(new Intent(SettingsActivity.this, BgmService.class));
+                        startService(new Intent(SettingsActivity.this, MainBgmService.class));
                     } else {
-                        stopService(new Intent(SettingsActivity.this, BgmService.class));
+                        stopService(new Intent(SettingsActivity.this, MainBgmService.class));
                     }
                 }
             }
