@@ -5,6 +5,7 @@
     android:id="@+id/boardLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/transparent"
     tools:context="com.kim.timingshot.GameActivity">
 
 
@@ -13,9 +14,15 @@
         android:layout_width="700dp"
         android:layout_height="700dp"
         android:layout_gravity="center"
-
         android:backgroundTint="@color/colorBackground"
         android:backgroundTintMode="screen"
-        android:scaleType="fitCenter"
-        app:srcCompat="@drawable/board" />
+        android:scaleType="fitCenter" />
+
+    <!-- Registering Custom View in layout XML file -->
+    <com.kim.timingshot.GameBoardView
+        android:id="@+id/game"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center" />
+
 </FrameLayout>

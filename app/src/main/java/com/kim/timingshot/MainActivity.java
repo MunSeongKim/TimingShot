@@ -1,5 +1,6 @@
 package com.kim.timingshot;
 
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -59,7 +60,8 @@ public class MainActivity extends AppCompatActivity {
         vibeSetting = settings.getBoolean("vibrate", true);
         effectSetting = settings.getBoolean("effect", true);
         bgmSetting = settings.getBoolean("bgm", true);
-        //When started application, start play for bgm service
+
+        //When started and focused application, start play for bgm service
         //Based on bgm preference value
         if(bgmSetting){
             startService(new Intent(this, MainBgmService.class));
@@ -72,6 +74,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause(){
         super.onPause();
+        //Check the state to lock
+        KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        //if mobile is locked, stop play
+        if(km.inKeyguardRestrictedInputMode()){
+            stopService(new Intent(this, MainBgmService.class));
+        }
         Log.i("LifeCycle", "onPause()");
     }
 
