@@ -7,12 +7,12 @@
     <application
         android:name=".SetFontApp"
         android:allowBackup="true"
+        android:hardwareAccelerated="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme"
         android:largeHeap="true"
-        android:hardwareAccelerated="false">
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
 
         <!-- 가로 화면 설정 => android:screenOrientation -->
         <activity
@@ -32,7 +32,17 @@
             android:name=".MainBgmService"
             android:enabled="true" />
 
-        <activity android:name=".GameActivity"></activity>
+        <activity
+            android:name=".GameActivity"
+            android:screenOrientation="landscape"
+            android:noHistory="true"
+            />
+
+        <service
+            android:name=".GameBgmService"
+            android:enabled="true" />
+
+        <activity android:name=".ResultActivity"></activity>
     </application>
 
 </manifest>

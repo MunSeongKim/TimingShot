@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Animated to game background -->
 <rotate xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="600000"
+    android:duration="150000"
     android:fromDegrees="0"
     android:toDegrees="360"
     android:pivotX="50%"

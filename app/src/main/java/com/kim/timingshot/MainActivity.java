@@ -1,6 +1,5 @@
 package com.kim.timingshot;
 
-import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -44,13 +43,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart(){
         super.onStart();
-        Log.i("LifeCycle", "onStart()");
+        Log.i(this.getClass().getName(), "MainActivity onStart()");
     }
 
     @Override
     protected void onRestart(){
         super.onRestart();
-        Log.i("LifeCycle", "onRestart()");
+        Log.i(this.getClass().getName(), "MainActivity onRestart()");
     }
 
     @Override
@@ -68,36 +67,38 @@ public class MainActivity extends AppCompatActivity {
         } else {
             stopService(new Intent(this, MainBgmService.class));
         }
-        Log.i("LifeCycle", "onResume()");
+        Log.i(this.getClass().getName(), "MainActivity onResume()");
     }
 
     @Override
     protected void onPause(){
         super.onPause();
+        /*
         //Check the state to lock
         KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         //if mobile is locked, stop play
         if(km.inKeyguardRestrictedInputMode()){
             stopService(new Intent(this, MainBgmService.class));
-        }
-        Log.i("LifeCycle", "onPause()");
+        }*/
+        stopService(new Intent(this, MainBgmService.class));
+        Log.i(this.getClass().getName(), "MainActivity onPause()");
     }
 
     @Override
     protected void onStop(){
         super.onStop();
-        Log.i("LifeCycle", "onStop()");
+        Log.i(this.getClass().getName(), "MainActivity onStop()");
     }
 
     @Override
     protected void onDestroy(){
         super.onDestroy();
-        Log.i("LifeCycle", "onDestroy()");
+        Log.i(this.getClass().getName(), "MainActivity onDestroy()");
         //When this application is completely finished, stop play for bgm service
         if( isFinishing() ) {
             stopService(new Intent(this, MainBgmService.class));
         } else {
-            Log.i("LifeCycle", "Not finished");
+            Log.i(this.getClass().getName(), "MainActivity Not finished");
         }
 
     }
@@ -125,7 +126,8 @@ public class MainActivity extends AppCompatActivity {
                 //if GameStart button click, stop to music service
                 stopService(new Intent(this, MainBgmService.class));
                 //and then start to game activity
-                startActivity(new Intent(this, GameActivity.class));
+                //startActivity(new Intent(this, GameActivity.class).addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY));
+                startActivity(new Intent(this, ResultActivity.class));
                 break;
             case R.id.btSetting:
                 //if this button click, Start settings activity

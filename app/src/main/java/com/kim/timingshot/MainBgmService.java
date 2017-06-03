@@ -6,7 +6,7 @@ import android.media.MediaPlayer;
 import android.os.IBinder;
 
 public class MainBgmService extends Service {
-    public static MediaPlayer bgm = null;
+    public MediaPlayer bgm = null;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -25,6 +25,7 @@ public class MainBgmService extends Service {
     @Override
     public void onDestroy(){
         bgm.stop();
+        bgm.reset();
         bgm.release();
         super.onDestroy();
     }

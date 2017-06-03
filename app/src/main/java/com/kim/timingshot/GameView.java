@@ -1,28 +1,33 @@
 package com.kim.timingshot;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
+import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.annotation.NonNull;
+import android.os.Vibrator;
+import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.content.res.Resources;
+
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Created by Administrator on 2017-05-28.
@@ -34,10 +39,8 @@ import android.content.res.Resources;
 public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     class GameThread extends Thread {
         /* Physics constants */
-        public static final int PHYS_SLEW_SEC = 120; // degrees/second rotate
-        public static final int PHYS_SPEED_HYPERSPACE = 180;
-        public static final int PHYS_SPEED_INIT = 30;
-        public static final int PHYS_SPEED_MAX = 120;
+        public static final double PHYS_ACCEL_SPEED = 5.0;
+        public static final double PHYS_SPEED_INIT = 3.0;
         /* State-tracking constants */
         public static final int STATE_LOSE = 1;
         public static final int STATE_PAUSE = 2;
@@ -55,6 +58,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         private static final String KEY_STAR_WIDTH = "mStarWidth";
         private static final String KEY_PLAYER_HEIGHT = "mPlayerHeight";
         private static final String KEY_PLAYER_WIDTH = "mPlayerWidth";
+        /* Initial constants */
+        public static final int INIT_STAR_COUNT = 4;
 
     /* Member (state) fields */
         /**
@@ -62,10 +67,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
          */
         private double mPlayerX;
         private double mPlayerY;
-        private double mStarX;
-        private double mStarY;
-        private double mBulletX;
-        private double mBulletY;
+        protected int mScoreX;
+        protected int mScoreY;
         /**
          * Velocity dx/dy.
          */
@@ -78,31 +81,25 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         private int mCanvasWidth = 1;
         private int mCanvasHeight = 1;
         /**
-         * What to draw for the Star/Player/Bullet when it has crashed
-         */
-        private Drawable mCrashedStar;
-        private Drawable mCrashedPlayer;
-        private Drawable mCrashedBulltet;
-        /**
          * What to draw for the Star/Player/Bullet in its normal state
          */
         private Drawable mStarImage;
         private Drawable mPlayerImage;
         private Drawable mBulletImage;
+        private Drawable mScoreImage;
         /**
-         * Pixel width/height of Star/Player/Bullet image.
+         * Objects of sprites
          */
-        private int mStarWidth;
-        private int mStarHeight;
+        private PlayerSprite player;
+        private CopyOnWriteArrayList<StarSprite> starList = new CopyOnWriteArrayList<>();
+        private CopyOnWriteArrayList<BulletSprite> bulletList = new CopyOnWriteArrayList<>();
+        /**
+         * Pixel width/height of Star image.
+         */
         private int mPlayerWidth;
         private int mPlayerHeight;
         private int mBulletWidth;
         private int mBulletHeight;
-
-        /**
-         * Used to figure out elapsed time between frames
-         */
-        private long mLastTime;
         /**
          * Message handler used by thread to interact with TextView
          */
@@ -111,53 +108,48 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
          * Lander heading in degrees, with 0 up, 90 right. Kept in the range: 0..360.
          */
         private double mHeading;
+        /** Accelerator rotate speed, with accumulating heading value */
+        private double mAccelHeading;
         /**
          * The state of the game. One of READY, RUNNING, PAUSE, LOSE, or WIN
          */
         private int mMode;
         /**
-         * Currently rotating, -1 left, 0 none, 1 right.
-         */
-        private int mRotating;
-        /**
          * Indicate whether the surface has been created & is ready to draw
          */
         private boolean mRun = false;
         private final Object mRunLock = new Object();
-
         /**
          * Handle to the surface manager object we interact with
          */
         private SurfaceHolder mSurfaceHolder;
 
-        public GameThread(SurfaceHolder surfaceHolder, Context context, Handler handler) {
+        private Resources res;
+
+        private SoundPool expEffect = null;
+        private int expEffectId = 0;
+
+        private int scoreCnt = 0;
+
+        private GameView mView;
+
+        public GameThread(GameView view, SurfaceHolder surfaceHolder, Context context, Handler handler) {
             // get handles to some important objects
             mSurfaceHolder = surfaceHolder;
             mHandler = handler;
             mContext = context;
+            mView = view;
+            res = context.getResources();
 
-            Resources res = context.getResources();
+
+            expEffect = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
+            expEffectId = expEffect.load(mContext, R.raw.explosion, 1);
 
             mStarImage = context.getResources().getDrawable(R.drawable.star);
-            mPlayerImage = context.getResources().getDrawable(R.drawable.player);
-            mBulletImage = context.getResources().getDrawable(R.drawable.bullet);
-
+            mPlayerImage = context.getResources().getDrawable(R.drawable.player_arrow);
             mPlayerWidth = mPlayerImage.getIntrinsicWidth();
             mPlayerHeight = mPlayerImage.getIntrinsicHeight();
-            mStarWidth = mStarImage.getIntrinsicWidth();
-            mStarHeight = mStarImage.getIntrinsicHeight();
-            mBulletWidth = mBulletImage.getIntrinsicWidth();
-            mBulletHeight = mBulletImage.getIntrinsicHeight();
-
-            mPlayerX = mPlayerWidth;
-            mPlayerY = mPlayerHeight * 2;
-            mStarX = mStarWidth;
-            mStarY = mStarHeight;
-            mBulletX = mBulletWidth;
-            mBulletY = mBulletHeight;
-            mDX = 0;
-            mDY = 0;
-            mHeading = 0;
+            mScoreImage = context.getResources().getDrawable(R.drawable.score);
         }
 
         /**
@@ -165,18 +157,55 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
          */
         public void doStart() {
             synchronized (mSurfaceHolder) {
-                int speedInit = PHYS_SPEED_INIT;
+                Log.i(this.getClass().getName(), "gameThread doStart()");
+                mAccelHeading = 3.0;
+                mScoreX = -100;
+                mScoreY = -100;
+                double centerX = mCanvasWidth / 2.0;
+                double centerY = mCanvasHeight / 2.0;
+                mPlayerX = (mCanvasWidth / 2) - (mPlayerWidth / 2);
+                mPlayerY = (mCanvasHeight / 2) - (mPlayerHeight / 2);
+                player = new PlayerSprite(this, mPlayerImage, (int)mPlayerX, (int)mPlayerY);
+                int r;
+                for(int i = 0; i < INIT_STAR_COUNT*2; i++) {
+                    int sidePos = i % INIT_STAR_COUNT;
+                    switch ( sidePos ){
+                        case 0:
+                            r = (int)(Math.random() * mCanvasWidth);
+                            starList.add(new StarSprite(this, mStarImage, r, 0));
+                            break;
+                        case 1:
+                            r = (int)(Math.random() * mCanvasHeight);
+                            starList.add(new StarSprite(this, mStarImage, 0, r));
+                            break;
+                        case 2:
+                            r = (int)(Math.random() * mCanvasWidth);
+                            starList.add(new StarSprite(this, mStarImage, r, mCanvasHeight-mStarImage.getIntrinsicHeight()));
+                            break;
+                        case 3:
+                            r = (int)(Math.random() * mCanvasHeight);
+                            starList.add(new StarSprite(this, mStarImage, mCanvasWidth-mStarImage.getIntrinsicWidth(), r));
+                            break;
+                    }
+                }
 
-                mPlayerX = mCanvasWidth / 2;
-                mPlayerY = mCanvasHeight / 2;
-                mStarX = mCanvasWidth / 2;
-                mStarY = mCanvasHeight / 2;
-                mBulletX = mCanvasWidth / 2;
-                mBulletY = mCanvasHeight / 2;
+                for(int i = 0; i < starList.size(); i++){
+                    if(starList.get(i) instanceof StarSprite){
+                        double velocity = (Math.random() * 0.4) + 0.1;
+                        mDX = ( ((starList.get(i).getCx() - centerX) / centerX) * 13.28 ) * velocity;
+                        mDY = ( ((starList.get(i).getCy() - centerY) / centerY) * 8.48 ) * velocity;
+                        mDX = -mDX;
+                        mDY = -mDY;
+                    /*
+                        int n = 100;
+                        mDX = ( (centerX - sprites.get(i).getCx()) / n );
+                        mDY = ( (centerY - sprites.get(i).getCy()) / n );
+                    */
+                        starList.get(i).setDx(mDX);
+                        starList.get(i).setDy(mDY);
+                    }
+                }
 
-                mHeading = 0;
-
-                mLastTime = System.currentTimeMillis() + 100;
                 setState(STATE_RUNNING);
             }
         }
@@ -190,22 +219,38 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
+        public void doEnd(){
+            gameOver();
+        }
+
         @Override
         public void run() {
+            try {
+                sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             while (mRun) {
                 Canvas c = null;
                 try {
                     c = mSurfaceHolder.lockCanvas(null);
                     synchronized (mSurfaceHolder) {
                         if (mMode == STATE_RUNNING) updatePhysics();
+
                         synchronized (mRunLock) {
                             if (mRun) doDraw(c);
                         }
                     }
+
                 } finally {
                     if (c != null) {
                         mSurfaceHolder.unlockCanvasAndPost(c);
                     }
+                }
+                try {
+                    sleep(10);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -226,16 +271,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
+
         /**
          * Sets the game mode. That is, whether we are running, paused, in the
          * failure state, in the victory state, etc.
          *
          * @param mode one of the STATE_* constants
-         * @see #setState(int, CharSequence)
+         * @see #setState(int, String)
          */
         public void setState(int mode) {
             synchronized (mSurfaceHolder) {
-                setState(mode, null);
+                setState(mode, "0");
             }
         }
 
@@ -246,7 +292,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
          * @param mode    one of the STATE_* constants
          * @param message string to add to screen or null
          */
-        public void setState(int mode, CharSequence message) {
+        public void setState(int mode, String message) {
             /*
              * This method optionally can cause a text message to be displayed
              * to the user when the mode changes. Since the View that actually
@@ -257,34 +303,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
              */
             synchronized (mSurfaceHolder) {
                 mMode = mode;
-
                 if (mMode == STATE_RUNNING) {
                     Message msg = mHandler.obtainMessage();
                     Bundle b = new Bundle();
-                    b.putString("text", "");
-                    b.putInt("viz", View.INVISIBLE);
-                    msg.setData(b);
-                    mHandler.sendMessage(msg);
-                } else {
-                    mRotating = 0;
-
-                    Resources res = mContext.getResources();
-                    CharSequence str = "";
-                    /*
-                    if (mMode == STATE_READY)
-                        str = res.getText(R.string.mode_ready);
-                    else if (mMode == STATE_PAUSE)
-                        str = res.getText(R.string.mode_pause);
-                    else if (mMode == STATE_LOSE)
-                        str = res.getText(R.string.mode_lose);
-                    else if (message != null) {
-                        str = message + "\n" + str;
-                    }*/
-
-                    Message msg = mHandler.obtainMessage();
-                    Bundle b = new Bundle();
-                    b.putString("text", str.toString());
-                    b.putInt("viz", View.VISIBLE);
+                    b.putString("text", message);
                     msg.setData(b);
                     mHandler.sendMessage(msg);
                 }
@@ -300,148 +322,97 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
+        /* Return width/height of this canvas */
+        public int getmCanvasWidth(){ return mCanvasWidth; }
+        public int getmCanvasHeight(){ return mCanvasHeight; }
+        /* Return List of starSprites/bulletSprites */
+        public CopyOnWriteArrayList<BulletSprite> getBulletList(){ return bulletList; }
+        public CopyOnWriteArrayList<StarSprite> getStarList(){ return starList; }
+        public Drawable getmScoreImage(){ return mScoreImage; }
         /**
          * Resumes from a pause.
          */
         public void unpause() {
-            synchronized (mSurfaceHolder) {
-                mLastTime = System.currentTimeMillis() + 100;
-            }
             setState(STATE_RUNNING);
+        }
+
+        private Bitmap getRotatedBullet(){
+            Bitmap bmp = BitmapFactory.decodeResource(mContext.getResources(), R.drawable.bullet);
+            int w = bmp.getWidth();
+            int h = bmp.getHeight();
+            thread.mBulletWidth = w;
+            thread.mBulletHeight = h;
+            Matrix mat = new Matrix();
+            mat.postRotate((float)mHeading);
+            mat.postScale((float)3.0, (float)3.0);
+            Bitmap resBmp = Bitmap.createBitmap(bmp, 0, 0, w, h, mat, true);
+            bmp.recycle();
+
+            return resBmp;
         }
 
         /**
          * Draws the Star/Player sprite to the provided Canvas.
          */
         private void doDraw(Canvas canvas) {
-            int yStarTop = mCanvasHeight - ((int) mStarY + mStarHeight / 2);
-            int xStarLeft = (int) mStarX - mStarWidth / 2;
-            int yPlayerTop = (int) mPlayerY; //mCanvasHeight // - ((int) mPlayerY + mPlayerHeight / 2);
-            int xPlayerLeft = (int) mPlayerX ;// - mPlayerWidth / 2;
-            int yBulletTop = mCanvasHeight - ((int) mBulletY + mBulletHeight / 2);
-            int xBulletLeft = (int) mBulletX - mBulletWidth / 2;
-
-            // Draw the player with its current rotation
-            //canvas.rotate((float) mHeading, (float) mPlayerX, mCanvasHeight
-            //        - (float) mPlayerY);
-            /*
-            if (mMode == STATE_LOSE) {
-                mCrashedImage.setBounds(xLeft, yTop, xLeft + mLanderWidth, yTop
-                        + mLanderHeight);
-                mCrashedImage.draw(canvas);
-            } else if (mEngineFiring) {
-                mFiringImage.setBounds(xLeft, yTop, xLeft + mLanderWidth, yTop
-                        + mLanderHeight);
-                mFiringImage.draw(canvas);
-            } else {
-                mLanderImage.setBounds(xLeft, yTop, xLeft + mLanderWidth, yTop
-                        + mLanderHeight);
-                mLanderImage.draw(canvas);
-            }*/
             //Set transparent this canvas
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            mStarImage.setBounds(xStarLeft, yStarTop, xStarLeft+mStarWidth, yStarTop+mStarHeight);
-            mStarImage.draw(canvas);
 
-            mPlayerImage.setBounds(xPlayerLeft, yPlayerTop, xPlayerLeft+mPlayerWidth, yPlayerTop+mPlayerHeight);
-            mPlayerImage.draw(canvas);
+            for(StarSprite star: starList){
+                star.draw(canvas);
+            }
 
-            Paint p = new Paint();
-            p.setColor(Color.WHITE);
-            p.setTextSize(100);
-            canvas.drawText(Integer.toString(mCanvasHeight), mCanvasWidth/2, 200, p);
-            canvas.drawText(Integer.toString(mCanvasWidth), mCanvasWidth/2, 400, p);
+            for(BulletSprite bullet : bulletList){
+                bullet.draw(canvas);
+            }
 
-
+            mScoreImage.setBounds(mScoreX, mScoreY, (mScoreX + mScoreImage.getIntrinsicWidth()), (mScoreY + mScoreImage.getIntrinsicHeight()));
+            mScoreImage.draw(canvas);
             canvas.save();
+            mHeading = (mHeading + mAccelHeading) % 360.0;
+            canvas.rotate((float)(mHeading), (float)(mCanvasWidth/2.0), (float)(mCanvasHeight/2.0));
+            player.draw(canvas);
+
             canvas.restore();
-
-
         }
 
         private void updatePhysics() {
-
-            long now = System.currentTimeMillis();
-
-            // Do nothing if mLastTime is in the future.
-            // This allows the game-start to delay the start of the physics
-            // by 100ms or whatever.
-            if (mLastTime > now) return;
-
-            double elapsed = (now - mLastTime) / 1000.0;
-            // mRotating -- update heading
-            if (mRotating != 0) {
-                mHeading += mRotating * (PHYS_SLEW_SEC * elapsed);
-
-                // Bring things back into the range 0..360
-                if (mHeading < 0)
-                    mHeading += 360;
-                else if (mHeading >= 360) mHeading -= 360;
-            }
-
-            // Base accelerations -- 0 for x, gravity for y
-            double ddx = 0.0;
-            double ddy = -((int) Math.random() * 10) * elapsed;
-            double dxOld = mDX;
-            double dyOld = mDY;
-            // figure speeds for the end of the period
-            mDX += ddx;
-            mDY += ddy;
-            // figure position based on average speed during the period
-            mStarX += elapsed * (mDX + dxOld) / 2;
-            mStarY += elapsed * (mDY + dyOld) / 2;
-            mLastTime = now;
-        }
-
-
-        /**
-         * Dump game state to the provided Bundle. Typically called when the
-         * Activity is being suspended.
-         *
-         * @return Bundle with this view's state
-         */
-/*
-        public Bundle saveState(Bundle map) {
+            // Move StarSprite to center position
             synchronized (mSurfaceHolder) {
-                if (map != null) {
-                    map.putDouble(KEY_X, Double.valueOf(mStarX));
-                    map.putDouble(KEY_Y, Double.valueOf(mStarY));
-                    map.putDouble(KEY_DX, Double.valueOf(mDX));
-                    map.putDouble(KEY_DY, Double.valueOf(mDY));
-                    map.putDouble(KEY_HEADING, Double.valueOf(mHeading));
-                    map.putInt(KEY_STAR_WIDTH, Integer.valueOf(mStarWidth));
-                    map.putInt(KEY_STAR_HEIGHT, Integer
-                            .valueOf(mStarHeight));
+                for (StarSprite star : starList) {
+                    star.move();
+                }
+
+                for (BulletSprite bullet : bulletList) {
+                    bullet.move();
+                }
+
+                for(Sprite star : starList){
+                    for(Sprite bullet : bulletList){
+                        if(bullet.checkCollision(star)){
+                            if(effectSetting) {
+                                expEffect.play(expEffectId, 1, 1, 1, 0, 1);
+                                Log.i(this.getClass().getName(), "play explosion");
+                            }
+                            scoreCnt++;
+                            setState(STATE_RUNNING, Integer.toString(scoreCnt));
+                            bullet.handleCollision(star);
+                        }
+                    }
+                    if(player.checkCollision(star)) {
+                        player.handleCollision(star);
+                    }
                 }
             }
-            return map;
         }
-*/
-        /**
-         * Restores game state from the indicated Bundle. Typically called when
-         * the Activity is being restored after having been previously
-         * destroyed.
-         *
-         * @param savedState Bundle containing the game state
-         */
-/*
-         public synchronized void restoreState(Bundle savedState) {
-            synchronized (mSurfaceHolder) {
-                setState(STATE_PAUSE);
-                mRotating = 0;
 
-                mStarX = savedState.getDouble(KEY_X);
-                mStarY = savedState.getDouble(KEY_Y);
-                mDX = savedState.getDouble(KEY_DX);
-                mDY = savedState.getDouble(KEY_DY);
-                mHeading = savedState.getDouble(KEY_HEADING);
-
-                mStarWidth = savedState.getInt(KEY_STAR_WIDTH);
-                mStarHeight = savedState.getInt(KEY_STAR_HEIGHT);
-
-            }
+        private double getmAccelHeading(){
+            return mAccelHeading;
         }
-        */
+
+        private void setmAccelHeading(double heading){
+            this.mAccelHeading = heading;
+        }
     }
 
 
@@ -453,22 +424,25 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     /**
      * Pointer to the text view to display "Paused.." etc.
      */
-    private TextView mStatusText;
+    private TextView mScoreText;
+    private TextView mClockText;
     /**
      * The thread that actually draws the animation
      */
     private GameThread thread;
 
+    private SoundPool shootEffect = null;
+    private int shootEffectId = 0;
+    private Vibrator vibe = null;
+    private SharedPreferences settings = null;
+    private Boolean vibeSetting = true;
+    private Boolean effectSetting = true;
 
-    //---------------------------
-    //Private code
-    //protected Star starList[] = new Star[10];
-    //private StarSpliteThread starThread = null;
-    //private Bitmap starImg = null;
+
 
     public GameView(Context context, AttributeSet attrs) {
         super(context, attrs);
-
+        mContext = context;
         // register our interest in hearing about changes to our surface
         // Background of SurfaceView is apply translucent
         SurfaceHolder holder = getHolder();
@@ -476,24 +450,28 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         holder.addCallback(this);
         holder.setFormat(PixelFormat.TRANSPARENT);
 
+        // Initialize to sound effect on click button
+        shootEffect = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
+        shootEffectId = shootEffect.load(context, R.raw.shoot, 1);
+        // Initialize vibrator setting
+        vibe = (Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
+
+        // Initialize SharedPreferences Object
+        settings = PreferenceManager.getDefaultSharedPreferences(context);
+        effectSetting = settings.getBoolean("effect", true);
+        vibeSetting = settings.getBoolean("vibrate", true);
+
         // create thread only; it's started in surfaceCreated()
-        thread = new GameThread(holder, context, new Handler() {
+        Log.i(this.getClass().getName(), "before create gameThread");
+        thread = new GameThread(this, holder, context, new Handler() {
             @Override
             public void handleMessage(Message m) {
-                mStatusText.setVisibility( m.getData().getInt("viz"));
-                mStatusText.setText(m.getData().getString("text"));
+                // mStatusText.setVisibility( m.getData().getInt("viz"));
+                mScoreText.setText(m.getData().getString("text"));
             }
         });
-
-        setFocusable(true); //make sure we get key events
-        /*
-        starImg = BitmapFactory.decodeResource(getResources(), R.drawable.player);
-        for (int i = 0; i < 10; i++){
-            starList[i] = new Star(starImg);
-        }
-
-        starThread = new StarSpliteThread(holder);
-        */
+        Log.i(this.getClass().getName(), "after create gameThread");
+        setFocusable(true); // make sure we get key events
     }
 
     /**
@@ -514,13 +492,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         if (!hasFocus) thread.pause();
+        else thread.unpause();
     }
 
     /**
      * Installs a pointer to the text view used for messages.
      */
-    public void setTextView(TextView textView) {
-        mStatusText = textView;
+    public void setTextView(TextView scoreText, TextView clockText) {
+        mScoreText = scoreText;
+        mClockText = clockText;
+    }
+
+    public void gameOver(){
+        Intent intent = new Intent(mContext, ResultActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("score", mScoreText.getText());
+        intent.putExtra("time", mClockText.getText());
+        mContext.startActivity(intent);
     }
 
     //If SurfaceView is created, calling this method
@@ -529,13 +516,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         //If SurfaceView is available, starting thread
         thread.setRunning(true);
         thread.start();
-        Log.i("SurfaceView", "Created");
+        Thread progressTime = new PrgsTimeThread(new Handler() {
+            @Override
+            public void handleMessage(Message m) {
+                mClockText.setText(m.getData().getString("time")+ "s");
+            }
+        });
+        progressTime.start();
+        Log.i(this.getClass().getName(), "surfaceCreated");
     }
 
     // Callback invoked when the surface dimensions change.
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        Log.i(this.getClass().getName(), "surfaceChanged");
         thread.setSurfaceSize(width, height);
+        thread.doStart();
     }
 
     //If SurfaceView is destroyed, calling this method
@@ -552,83 +548,105 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             } catch (InterruptedException e) {
             }
         }
-        Log.i("SurfaceView", "Destroyed");
+
+        Log.i(this.getClass().getName(), "surfaceDestroyed");
     }
-}
-/*
-    //Actually draw image by this thread
-    public class StarSpliteThread extends Thread {
-        private boolean mRun = false;
-        private SurfaceHolder mSurfaceHolder;
 
-        //Create thread get SurfaceHolder
-        public StarSpliteThread(SurfaceHolder surfaceHolder){
-            this.mSurfaceHolder = surfaceHolder;
-        }
-
-        //This part is actual work in this thread
-        @Override
-        public void run(){
-            while( mRun ){
-                Canvas c = null;
-                try {
-                    //Get canvas from SurfaceHolder
-                    c = mSurfaceHolder.lockCanvas(null);
-                    if(c != null){
-                        //Set transparent this canvas
-                        c.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-                        synchronized (mSurfaceHolder) {
-                            //To do work
-                            for (Star s: starList){
-                                s.paint(c);
+    boolean actionFlag = true;
+    Thread touchThread;
+    @Override
+    public boolean onTouchEvent(MotionEvent e){
+        switch(e.getAction()){
+            case MotionEvent.ACTION_DOWN:
+                Log.i(this.getClass().getName(), "onTouchDown");
+                actionFlag = true;
+                touchThread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        while(actionFlag){
+                            try {
+                                thread.setmAccelHeading(thread.getmAccelHeading() + GameThread.PHYS_ACCEL_SPEED);
+                                Thread.sleep(500);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
                             }
                         }
                     }
-                } finally {
-                    if( c != null) {
-                        //Unlock for canvas
-                        mSurfaceHolder.unlockCanvasAndPost(c);
-                    }
+                });
+
+                touchThread.start();
+                break;
+            case MotionEvent.ACTION_UP:
+                Log.i(this.getClass().getName(), "onTouchUp");
+
+                if(effectSetting) {
+                    shootEffect.play(shootEffectId, 1, 1, 1, 0, 1);
+                }
+
+                if(vibeSetting){
+                    vibe.vibrate(100);
+                }
+
+                actionFlag = false;
+                touchThread = null;
+                thread.setmAccelHeading(GameThread.PHYS_SPEED_INIT);
+                thread.mBulletImage = new BitmapDrawable(thread.getRotatedBullet());
+
+                double bX = 0.0, bY = 0.0;
+                double r = thread.mPlayerHeight /1.5;
+                double bw = thread.mBulletImage.getIntrinsicWidth() /2;
+                double bh = thread.mBulletImage.getIntrinsicHeight()/2;
+                double rad = Math.toRadians(thread.mHeading);
+                if( (0.0 <= thread.mHeading) && (thread.mHeading < 90.0) ){
+                    bX = (Math.sin(rad) * r);
+                    bY = -(Math.cos(rad) * r);
+                } else if( (90.0 <= thread.mHeading) && (thread.mHeading < 180.0) ){
+                    bX = (Math.sin(rad) * r);
+                    bY = -(Math.cos(rad) * r);
+                } else if( (180.0 <= thread.mHeading) && (thread.mHeading< 270.0) ){
+                    bX = (Math.sin(rad) * r);
+                    bY = -(Math.cos(rad) * r);
+                } else if( (270.0 <= thread.mHeading) && (thread.mHeading< 360.0) ){
+                    bX = (Math.sin(rad) * r);
+                    bY = -(Math.cos(rad) * r);
+                }
+
+                double cx = thread.mCanvasWidth / 2;
+                double cy = thread.mCanvasHeight /2;
+                double x = cx + bX;
+                double y = cy + bY;
+                thread.bulletList.add( new BulletSprite(thread, thread.mBulletImage, (int)(x-bw), (int)(y-bh), bX, bY));
+                break;
+            case MotionEvent.ACTION_MOVE:
+                break;
+        }
+
+        return true;
+    }
+
+    class PrgsTimeThread extends Thread {
+        private Handler mHandler;
+        private int time = 0;
+
+        public PrgsTimeThread(Handler handler) {
+            mHandler = handler;
+        }
+
+        @Override
+        public void run() {
+            while(thread.mRun) {
+                try {
+                    sleep(1000);
+                    time++;
+                    Message msg = mHandler.obtainMessage();
+                    Bundle b = new Bundle();
+                    b.putString("time", Integer.toString(time));
+                    msg.setData(b);
+                    mHandler.sendMessage(msg);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
         }
-
-        //Controlling thread through this method
-        public void setRunning(boolean b) {
-            this.mRun = b;
-        }
     }
 }
-
-//This class is expression for StarSplite
-class Star {
-    int x, y, xInc = 1, yInc = 1;
-    static int WIDTH = 1920, HEIGHT = 1080;
-    private Bitmap starImg;
-
-    //Create to object and set up
-    public Star(Bitmap starImg) {
-        x = (int)(Math.random() * (WIDTH - 9) + 3);
-        y = (int)(Math.random() * (HEIGHT - 9) + 3);
-
-        xInc = (int)(Math.random() * 5 + 1);
-        yInc = (int)(Math.random() * 5 + 1);
-
-        this.starImg = starImg;
-    }
-
-    //Draw image over move on SurfaceView
-    public void paint(Canvas c){
-        // Paint paint = new Paint();
-
-        if( x < 0 || x > (WIDTH - 9) ) xInc = -xInc;
-        if( y < 0 || y > (HEIGHT - 9) ) yInc = -yInc;
-
-        x += xInc;
-        y += yInc;
-
-        c.drawBitmap(starImg, x, y, null);
-    }
-
-}
-*/
