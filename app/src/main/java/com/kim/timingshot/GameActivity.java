@@ -98,6 +98,7 @@ public class GameActivity extends AppCompatActivity {
     protected void onStop(){
         super.onStop();
         Log.i(this.getClass().getName(), "GameActivity onStop()");
+        board.setImageBitmap(null);
         this.finish();
 
     }

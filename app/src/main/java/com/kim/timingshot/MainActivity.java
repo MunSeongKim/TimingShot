@@ -8,6 +8,7 @@ import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -29,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        findViewById(R.id.mainBackground).setBackgroundDrawable(ContextCompat.getDrawable(this, R.drawable.main_background));
         //Initialize to sound effect on click button
         effect = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
         effectId = effect.load(this, R.raw.button, 1);
@@ -55,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume(){
         super.onResume();
+        findViewById(R.id.mainBackground).setBackgroundDrawable(ContextCompat.getDrawable(this, R.drawable.main_background));
         //Get setting data from SharedPreferences
         vibeSetting = settings.getBoolean("vibrate", true);
         effectSetting = settings.getBoolean("effect", true);
@@ -87,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop(){
         super.onStop();
+        findViewById(R.id.mainBackground).setBackground(null);
         Log.i(this.getClass().getName(), "MainActivity onStop()");
     }
 
@@ -121,13 +125,13 @@ public class MainActivity extends AppCompatActivity {
 
         switch( v.getId() ){
             case R.id.btRanking:
+                startActivity(new Intent(this, RankActivity.class));
                 break;
             case R.id.btStart:
                 //if GameStart button click, stop to music service
                 stopService(new Intent(this, MainBgmService.class));
                 //and then start to game activity
-                //startActivity(new Intent(this, GameActivity.class).addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY));
-                startActivity(new Intent(this, ResultActivity.class));
+                startActivity(new Intent(this, GameActivity.class).addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY));
                 break;
             case R.id.btSetting:
                 //if this button click, Start settings activity

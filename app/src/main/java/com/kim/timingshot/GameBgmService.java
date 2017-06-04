@@ -13,7 +13,7 @@ import java.util.ArrayList;
  */
 
 public class GameBgmService extends Service {
-    private static final int BGM_LIST_COUNT = 9;
+    private static final int BGM_LIST_COUNT = 3;
     public MediaPlayer bgm = null;
     public ArrayList<Integer> bgmList = new ArrayList<>();
 
