@@ -64,6 +64,7 @@ public class ResultActivity extends AppCompatActivity {
         time = intent.getStringExtra("time");
         if(score == null) score="0";
         if(time == null) time="0s";
+        else time = time.replace("s", "");
 
         resScore.setText(score);
         resTime.setText(time);

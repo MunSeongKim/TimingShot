@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -92,9 +93,13 @@ public class RankActivity extends AppCompatActivity {
                 imageView.setVisibility(View.INVISIBLE);
             }
 
-            name.setText(allData.get(position).get("name"));
-            score.setText(allData.get(position).get("score"));
-            time.setText(allData.get(position).get("time"));
+            HashMap<String, String> data = allData.get(position);
+
+            Log.i(this.getClass().getName(), data.toString());
+            Log.i(this.getClass().getName(), "position "+position);
+            name.setText(data.get("name"));
+            score.setText(data.get("score"));
+            time.setText(data.get("time") + "s");
 
             return itemView;
         }

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,8 +33,8 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL( "CREATE TABLE " + TABLE_NAME + " ("
                 + COLUMN_ID + " integer PRIMARY KEY AUTOINCREMENT, "
                 + COLUMN_NAME + " text NOT NULL, "
-                + COLUMN_SCORE + " text NOT NULL, "
-                + COLUMN_TIME + " text NOT NULL)" );
+                + COLUMN_SCORE + " integer NOT NULL, "
+                + COLUMN_TIME + " integer NOT NULL)" );
     }
 
     @Override
@@ -69,24 +70,26 @@ public class DBHelper extends SQLiteOpenHelper {
      * @return dataList : All data ordered by descending for criteria column.
      */
     public ArrayList<HashMap<String, String>> getAllDataByDesc(String column) {
-        ArrayList<HashMap<String, String>> dataList = new ArrayList();
-        HashMap<String, String> data = new HashMap<>();
+        ArrayList<HashMap<String, String>> dataList = new ArrayList<>();
+
 
         SQLiteDatabase db = this.getReadableDatabase();
 
         Cursor res = db.rawQuery("SELECT " + COLUMN_NAME + ", " + COLUMN_SCORE + ", " + COLUMN_TIME
-                + " FROM " + TABLE_NAME + " ORDER BY " + column +" DESC LIMIT 5", null);
+                + " FROM " + TABLE_NAME + " ORDER BY " + column +" DESC", null);
+        Log.i(this.getClass().getName(), res.getCount()+"");
         res.moveToFirst();
-
         while (res.isAfterLast() == false) {
+            HashMap<String, String> data = new HashMap<>();
             data.put("name", res.getString(res.getColumnIndex(COLUMN_NAME)));
             data.put("score", res.getString(res.getColumnIndex(COLUMN_SCORE)));
             data.put("time", res.getString(res.getColumnIndex(COLUMN_TIME)));
-
+            Log.i(this.getClass().getName(), data.toString());
             dataList.add(data);
             res.moveToNext();
         }
 
+        Log.i(this.getClass().getName(), dataList.toString());
         return dataList;
     }
 }
