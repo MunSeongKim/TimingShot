@@ -67,7 +67,7 @@ public class ResultActivity extends AppCompatActivity {
         else time = time.replace("s", "");
 
         resScore.setText(score);
-        resTime.setText(time);
+        resTime.setText(time + "s");
 
         Log.i(this.getClass().getName(), "Result Activity onCreate()");
     }
